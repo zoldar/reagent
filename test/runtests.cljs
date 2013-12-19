@@ -44,7 +44,7 @@
       [simpleexample/simple-example]]
      [:div
       [:h2 p "Todomvc:"]
-      [todomvc/todo-app]]]))
+      [todomvc/todo-app-with-benchmark]]]))
 
 (defn test-main []
   [examples])

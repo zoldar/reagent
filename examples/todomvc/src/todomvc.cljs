@@ -25,7 +25,7 @@
                   {:component-did-mount #(.focus (cloact/dom-node %))}))
 
 (defn todo-item [{:keys [todo on-toggle on-save on-destroy]} this]
-  (dbg "Rendering item")
+  ;; (dbg "Rendering item")
   (let [{:keys [id done title]} todo
         {:keys [editing]} @this]
     [:li {:class (str (if done "completed ")
@@ -73,22 +73,22 @@
 (defn complete-all [todos v] (swap! todos mod-map map #(assoc-in % [1 :done] v)))
 (defn clear-done [todos] (swap! todos mod-map remove #(get-in % [1 :done])))
 
+(def todos (let [t (atom (sorted-map))]
+             (dotimes [x 5]
+               (add-todo t (str "Some todo " x)))
+             t))
+
 (defn todo-app [props]
-  (let [todos (or (:todos props)
-                  (let [t (atom (sorted-map))]
-                    (dotimes [x 5]
-                      (add-todo t (str "Some todo " x)))
-                    t))
-        filt (atom :all)]
+  (let [filt (atom :all)]
     (fn []
       (let [items (vals @todos)
             done (->> items (filter :done) count)
             active (- (count items) done)
             pred (case @filt
-                     :active (complement :done)
-                     :done :done
-                     :all identity)]
-        (dbg "Rendering main")
+                   :active (complement :done)
+                   :done :done
+                   :all identity)]
+        ;; (dbg "Rendering main")
         [:section#todoapp
          [:header#header
           [:h1 "todos"]
@@ -100,17 +100,54 @@
                                                   (pos? active))}]
           [:label {:for "toggle-all"} "Mark all as complete"]
           [:ul#todo-list
-           [animation {:name "todoitem"}
-            (for [{id :id :as todo} (filter pred items)]
-              [todo-item {:key id :todo todo
-                          :on-save (partial save todos id)
-                          :on-toggle (partial toggle todos id)
-                          :on-destroy (partial delete todos id)}])]]]
+           ;; [animation {:name "todoitem"}
+           (for [{id :id :as todo} (filter pred items)]
+             [todo-item {:key id :todo todo
+                         :on-save (partial save todos id)
+                         :on-toggle (partial toggle todos id)
+                         :on-destroy (partial delete todos id)}])]]
          [:footer#footer
           [todo-stats {:active active :done done :filter filt
                        :clear (partial clear-done todos)}]]
          [:footer#info
           [:p "Double-click to edit a todo"]]]))))
 
+
+;; Benchmarks from om, see
+;; http://swannodette.github.io/2013/12/17/the-future-of-javascript-mvcs/
+(def benchtime (atom nil))
+
+(defn run-benchmark-1 [todos]
+  (reset! todos (sorted-map))
+  (dotimes [_ 200]
+    (add-todo todos "foo")))
+
+(defn run-benchmark-2 [todos]
+  (dotimes [_ 200]
+    (add-todo todos "foo"))
+  (dotimes [i 5]
+    (complete-all todos (zero? (mod i 2))))
+  (clear-done todos))
+
+(defn timing [f]
+  (let [start (.now js/Date)]
+    (f)
+    (reset! benchtime (- (.now js/Date) start))))
+
+(defn todo-app-with-benchmark []
+  [:div
+   [:div
+    [:p "Benchmarks"]
+    [:input {:type "button"
+             :value "benchmark 1"
+             :on-click (fn [] (timing #(run-benchmark-1 todos)))}]
+    [:input {:type "button"
+             :value "benchmark 2"
+             :on-click (fn [] (timing #(run-benchmark-2 todos)))}]
+    (when @benchtime
+      [:p "time: " @benchtime "ms"])]
+   [todo-app]])
+
 (defn ^:export run []
-  (cloact/render-component [todo-app] (.-body js/document)))
+  (cloact/render-component [todo-app-with-benchmark]
+                           (.-body js/document)))
