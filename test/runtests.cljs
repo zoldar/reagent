@@ -2,16 +2,12 @@
 (ns runtests
   (:require-macros [cemerick.cljs.test
                     :refer (is deftest with-test run-tests testing)]
-                   [cloact.debug :refer [dbg println]])
+                   [reagent.debug :refer [dbg println]])
   (:require [cemerick.cljs.test :as t]
-            [cloact.core :as cloact :refer [atom]]
+            [reagent.core :as reagent :refer [atom]]
             [demo :as demo]))
 
-(defn ^:export console-print [x]
-  (when (not= x "\n")
-    (println x)))
-
-(set-print-fn! console-print)
+(enable-console-print!)
 
 (def test-results (atom nil))
 
@@ -20,11 +16,11 @@
    (println "-----------------------------------------")
    (reset! test-results (t/run-all-tests))
    (println "-----------------------------------------"))
- (if cloact/is-client 1000 0))
+ (if reagent/is-client 1000 0))
 
 (defn test-output []
   (let [res @test-results]
-    [:div
+    [:div {:style {:margin-top "40px"}}
      (if-not res
        [:div "waiting for tests to run"]
        [:div
@@ -47,4 +43,4 @@
    [demo/demo]])
 
 (defn ^:export mounttests []
-  (cloact/render-component [test-demo] (.-body js/document)))
+  (reagent/render-component [test-demo] (.-body js/document)))

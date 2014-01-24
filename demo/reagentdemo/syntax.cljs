@@ -1,4 +1,4 @@
-(ns demoutil
+(ns reagentdemo.syntax
   (:require [clojure.string :as string]))
 
 (def builtins #{"def" "defn" "ns" "atom" "let" "if" "when"
@@ -8,7 +8,8 @@
                "empty" "into" "assoc-in" "dissoc" "get-in" "when-not"
                "filter" "vals" "count" "complement" "identity" "dotimes"
                "update-in" "sorted-map" "inc" "dec" "false" "true" "not"
-               "="})
+               "=" "partial" "first" "second" "rest" "list" "conj"
+               "drop" "when-let" "if-let" "add-watch"})
 
 (def styles {:comment  {:style {:color "gray"
                                 :font-style "italic"}}

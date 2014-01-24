@@ -5,15 +5,71 @@
     box-sizing: border-box;
 }
 
-.cloact-demo {
-    background-color: #fff;
-    margin: 40px -100px;
-    padding: 40px 60px;
+div.nav {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
 }
 
-.cloact-demo > h1 {
-    font-size: 36px;
-    line-height: 1.1em;
+ul.nav {
+    margin: 0 auto;
+    width: 750px;
+    height: 40px;
+    padding-left: 60px;
+    padding-top: 10px;
+    list-style-type: none;
+}
+
+ul.nav > li {
+    float: left;
+    margin-right: 60px;
+}
+
+ul.nav > li > a {
+    text-decoration: none;
+    text-transform: uppercase;
+    letter-spacing: 3px;
+    font-size: 11px;
+    color: #777;
+}
+
+ul.nav > li.brand > a {
+    color: #444;
+}
+
+@media (max-width: 768px) {
+    div.nav {
+        position: static;
+        background-color: #fff;
+    }
+    ul.nav {
+        width: 100%;
+        padding: 18px 27px;
+    }
+    ul.nav > li {
+        float: left;
+        margin-right: 30px;
+    }
+}
+
+.reagent-demo {
+    background-color: #fff;
+    margin: 60px -100px;
+    padding: 36px 60px;
+}
+
+.reagent-demo > h1 {
+    font-size: 48px;
+    color: #555;
+    font-family: 'HelveticaNeue-Light', 'Helvetica Neue', arial;
+    font-weight: normal;
+    line-height: 1.25em;
+}
+
+.reagent-demo > h1 > a {
+    color: inherit;
+    text-decoration: none;
 }
 
 @media (max-width: 768px) {
@@ -21,9 +77,9 @@
         width: auto;
         margin: 0 0;
     }
-    .cloact-demo {
+    .reagent-demo {
         margin: 0 0;
-        padding: 27px 27px;
+        padding: 36px 27px;
         width: 100%;
     }
     .github-badge {
@@ -42,7 +98,9 @@
     margin-right: -180px;
 }
 
-.cloact-demo h2 {
+.reagent-demo h2 {
+    font-size: 20px;
+    line-height: 1.25em;
     margin-top: 48px;
     color: #555;
 }
@@ -50,7 +108,7 @@
 .demo-text > p, .demo-text > ul {
     font-family: georgia, serif;
     font-size: 18px;
-    line-height: 27px;
+    line-height: 1.5em;
     color: #444;
 }
 
