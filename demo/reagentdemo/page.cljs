@@ -9,6 +9,8 @@
 
 (def page (atom ""))
 
+(def path-prefix "reagent/")
+
 (defn create-history []
   (when reagent/is-client
     (let [proto (-> js/window .-location .-protocol)]
@@ -21,9 +23,11 @@
 (defn setup-history []
   (when-let [h (create-history)]
     (events/listen h EventType/NAVIGATE
-                   (fn [e] (reset! page (.-token e))))
+                   (fn [e] (reset! page
+                                   (subs (.-token e)
+                                         (count path-prefix)))))
     (add-watch page ::history (fn [_ _ oldp newp]
-                                (.setToken h newp)))
+                                (.setToken h (str path-prefix newp))))
     (.setEnabled h true)
     h))
 

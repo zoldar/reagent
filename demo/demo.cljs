@@ -33,7 +33,7 @@
    [github-badge]])
 
 (defn ^:export mountdemo [p]
-  (when p (reset! page p))
+  (when p (reset! page (case p "index.html" "" p)))
   (reagent/render-component [demo] (.-body js/document)))
 
 (defn gen-page [p timestamp]
