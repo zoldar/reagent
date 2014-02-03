@@ -7,7 +7,7 @@ PROF = dev
 CLJSBUILD = client
 CLJSDIRS = src test
 
-VERSION = 0.2.0
+VERSION = 0.3.0
 
 all: buildrun
 
@@ -26,10 +26,10 @@ runtest:
 	$(MAKE) run PROF=test,$(PROF)
 
 runsite: setup
-	(sleep 3 && open "http://127.0.0.1:$(PORT)/reagent") &
+	(sleep 3 && open "http://127.0.0.1:$(PORT)/$$(basename $$PWD)") &
 	( trap "kill 0" SIGINT SIGTERM EXIT; \
 	  ( cd .. && python -m SimpleHTTPServer $(PORT) & ); \
-	  lein -o with-profile $(PROF) cljsbuild auto $(CLJSBUILD) )
+	  lein -o with-profile $(PROF),prod cljsbuild auto $(CLJSBUILD) )
 
 install: leinbuild
 	lein install
@@ -71,7 +71,7 @@ buildsite: demobuild gensite
 
 setversion:
 	version=$(VERSION); \
-	find . -name project.clj | \
+	find . -name project.clj -o -name README.md | \
 	xargs -n1 sed -i "" -e 's,\(reagent "\)\([^"]*\)",\1'"$$version"'"',g
 
 tag: setversion
@@ -79,6 +79,6 @@ tag: setversion
 	   echo "Tag already exists"; \
 	   exit 1; \
 	else \
-	   git commit --allow-empty -a -m"Version "$(VERSION); \
+	   git commit --allow-empty -a -v -e -m"Version "$(VERSION) && \
 	   git tag v$(VERSION); \
 	fi
