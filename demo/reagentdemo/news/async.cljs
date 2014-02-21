@@ -8,7 +8,7 @@
 (def funmap (-> "reagentdemo/news/async.cljs" get-source common/fun-map))
 (def src-for (partial common/src-for funmap))
 
-(defn timing-wrapper [{f :component-fn}]
+(defn timing-wrapper [f]
   (let [start-time (atom nil)
         render-time (atom nil)
         now #(.now js/Date)
@@ -19,10 +19,10 @@
                    :component-will-update start
                    :component-did-mount stop
                    :component-did-update stop})]
-    (fn [props children]
+    (fn []
       [:div
        [:p [:em "render time: " @render-time "ms"]]
-       (into [timed-f props] children)])))
+       [timed-f]])))
 
 (def base-color (atom {:red 130 :green 160 :blue 120}))
 (def ncolors (atom 20))
@@ -38,11 +38,11 @@
         tweak #(-> % (+ (rnd)) (/ 2) js/Math.floor)]
     {:red (tweak red) :green (tweak green) :blue (tweak blue)}))
 
-(defn reset-random-colors []
+(defn reset-random-colors [color]
   (reset! random-colors
-          (repeatedly #(-> @base-color tweak-color to-rgb))))
+          (repeatedly #(-> color tweak-color to-rgb))))
 
-(defn color-choose [{color-part :color-part}]
+(defn color-choose [color-part]
   [:div.color-slider
    (name color-part) " " (color-part @base-color)
    [:input {:type "range" :min 0 :max 255
@@ -50,7 +50,7 @@
             :on-change (fn [e]
                          (swap! base-color assoc
                                 color-part (-> e .-target .-value int))
-                         (reset-random-colors))}]])
+                         (reset-random-colors @base-color))}]])
 
 (defn ncolors-choose []
   [:div.color-slider
@@ -59,7 +59,7 @@
             :value @ncolors
             :on-change #(reset! ncolors (-> % .-target .-value))}]])
 
-(defn color-plate [{color :color}]
+(defn color-plate [color]
   [:div.color-plate
    {:style {:background-color color}}])
 
@@ -69,23 +69,23 @@
     [:div
      [:div
       [:p "base color: "]
-      [color-plate {:color (to-rgb color)}]]
+      [color-plate (to-rgb color)]]
      [:div.color-samples
       [:p n " random matching colors:"]
       (map-indexed (fn [k v]
-                     [color-plate {:key k :color v}])
+                     ^{:key k} [color-plate v])
                    (take n @random-colors))]]))
 
 (defn color-demo []
-  (reset-random-colors)
+  (reset-random-colors @base-color)
   (fn []
     [:div
      [:h2 "Matching colors"]
-     [color-choose {:color-part :red}]
-     [color-choose {:color-part :green}]
-     [color-choose {:color-part :blue}]
+     [color-choose :red]
+     [color-choose :green]
+     [color-choose :blue]
      [ncolors-choose]
-     [timing-wrapper {:component-fn palette}]]))
+     [timing-wrapper palette]]))
 
 (defn main [{:keys [summary]}]
   (let [om-article {:href "http://swannodette.github.io/2013/12/17/the-future-of-javascript-mvcs/"}]

@@ -21,19 +21,21 @@
               (.setUseFragment false)))
         (History.)))))
 
+(def history (create-history))
+
 (defn setup-history []
-  (when-let [h (create-history)]
+  (when-let [h history]
     (events/listen h hevt/NAVIGATE
                    (fn [e]
                      (reset! page (subs (.-token e)
                                         (count @base-path)))
                      (reagent/flush)))
     (add-watch page ::history (fn [_ _ oldp newp]
-                                (.setToken h (str @base-path newp))))
-    (.setEnabled h true)
-    h))
+                                (when-not (= oldp newp)
+                                  (.setToken h (str @base-path newp)))))
+    (.setEnabled h true)))
 
-(def history (setup-history))
+(js/setTimeout setup-history 100)
 
 (defn set-start-page [p]
   (when html5-history
@@ -64,32 +66,30 @@
   (let [depth (-> #"/" (re-seq @page) count)]
     (str (->> "../" (repeat depth) (apply str)) href)))
 
-(defn link [props children]
+(defn link [props child]
   (let [rpm @reverse-page-map
         href (-> props :href rpm)]
     (assert (string? href))
-    (apply vector
-           :a (assoc props
-                :href (prefix href)
-                :on-click (if history
-                            (fn [e]
-                              (.preventDefault e)
-                              (reset! page href)
-                              (set! (.-scrollTop (.-body js/document))
-                                    0))
-                            identity))
-           children)))
+    [:a (assoc props
+          :href (prefix href)
+          :on-click (if history
+                      (fn [e]
+                        (.preventDefault e)
+                        (reset! page href)
+                        (reagent/next-tick
+                         #(set! (.-scrollTop (.-body js/document)) 0)))
+                      identity))
+     child]))
 
 (add-watch page ::title-watch
            (fn [_ _ _ p]
              ;; First title on a page wins
              (reset! title-atom "")))
 
-(defn title [props children]
-  (let [name (first children)]
-    (when (= @title-atom "")
-      (if reagent/is-client
-        (let [title (aget (.getElementsByTagName js/document "title") 0)]
-          (set! (.-innerHTML title) name)))
-      (reset! title-atom name))
-    [:div]))
+(defn title [name]
+  (when (= @title-atom "")
+    (if reagent/is-client
+      (let [title (aget (.getElementsByTagName js/document "title") 0)]
+        (set! (.-innerHTML title) name)))
+    (reset! title-atom name))
+  [:div])

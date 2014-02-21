@@ -1,5 +1,63 @@
 (ns reagent.impl.util
-  (:require [reagent.debug :refer-macros [dbg]]))
+  (:require [reagent.debug :refer-macros [dbg log]]
+            [reagent.impl.reactimport :as reactimport]
+            [clojure.string :as string]))
+
+(def is-client (not (nil? (try (.-document js/window)
+                               (catch js/Object e nil)))))
+
+(def React reactimport/React)
+
+;;; Props accessors
+
+(def props "props")
+(def cljs-level "cljsLevel")
+(def cljs-argv "cljsArgv")
+
+(defn js-props [C]
+  (aget C props))
+
+(defn extract-props [v]
+  (let [p (get v 1)]
+    (if (map? p) p)))
+
+(defn extract-children [v]
+  (let [p (get v 1)
+        first-child (if (or (nil? p) (map? p)) 2 1)]
+    (if (> (count v) first-child)
+      (subvec v first-child))))
+
+(defn get-argv [C]
+  (-> C (aget props) (aget cljs-argv)))
+
+(defn get-props [C]
+  (-> C (aget props) (aget cljs-argv) extract-props))
+
+(defn get-children [C]
+  (-> C (aget props) (aget cljs-argv) extract-children))
+
+(defn reagent-component? [C]
+  (-> C get-argv nil? not))
+
+
+;; Misc utilities
+
+(def dont-camel-case #{"aria" "data"})
+
+(defn capitalize [s]
+  (if (< (count s) 2)
+    (string/upper-case s)
+    (str (string/upper-case (subs s 0 1)) (subs s 1))))
+
+(defn dash-to-camel [dashed]
+  (if (string? dashed)
+    dashed
+    (let [name-str (name dashed)
+          [start & parts] (string/split name-str #"-")]
+      (if (dont-camel-case start)
+        name-str
+        (apply str start (map capitalize parts))))))
+
 
 (deftype partial-ifn [f args ^:mutable p]
   IFn
@@ -35,42 +93,46 @@
       (assert (map? p1))
       (merge-style p1 (merge-class p1 (merge p1 p2))))))
 
-(defn identical-parts [v1 v2]
-  ;; Compare two vectors using identical?
-  (or (identical? v1 v2)
-      (let [end (count v1)]
-        (and (== end (count v2))
-             (loop [n 0]
-               (if (>= n end)
-                 true
-                 (if (identical? (nth v1 n) (nth v2 n))
-                   (recur (inc n))
-                   false)))))))
+
+;;; Helpers for shouldComponentUpdate
 
 (def -not-found (js-obj))
 
+(defn identical-ish? [x y]
+  (or (keyword-identical? x y)
+      (and (or (symbol? x)
+               (identical? (type x) partial-ifn))
+           (= x y))))
+
 (defn shallow-equal-maps [x y]
-  ;; Compare two maps, using keyword-identical? on all values
+  ;; Compare two maps, using identical-ish? on all values
   (or (identical? x y)
       (and (map? x)
            (map? y)
            (== (count x) (count y))
            (reduce-kv (fn [res k v]
                         (let [yv (get y k -not-found)]
-                          (if (or (keyword-identical? v yv)
-                                  ;; Allow :style maps, symbols
-                                  ;; and reagent/partial
-                                  ;; to be compared properly
+                          (if (or (identical? v yv)
+                                  (identical-ish? v yv)
+                                  ;; Handle :style maps specially
                                   (and (keyword-identical? k :style)
-                                       (shallow-equal-maps v yv))
-                                  (and (or (identical? (type v) partial-ifn)
-                                           (symbol? v))
-                                       (= v yv)))
+                                       (shallow-equal-maps v yv)))
                             res
                             (reduced false))))
                       true x))))
 
-(defn equal-args [p1 c1 p2 c2]
-  [p1 c1 p2 c2]
-  (and (identical-parts c1 c2)
-       (shallow-equal-maps p1 p2)))
+(defn equal-args [v1 v2]
+  ;; Compare two vectors using identical-ish?
+  (assert (vector? v1))
+  (assert (vector? v2))
+  (or (identical? v1 v2)
+      (and (== (count v1) (count v2))
+           (reduce-kv (fn [res k v]
+                        (let [v' (v2 k)]
+                          (if (or (identical? v v')
+                                  (identical-ish? v v')
+                                  (and (map? v)
+                                       (shallow-equal-maps v v')))
+                            res
+                            (reduced false))))
+                      true v1))))

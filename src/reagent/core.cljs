@@ -5,11 +5,17 @@
   (:require [reagent.impl.template :as tmpl]
             [reagent.impl.component :as comp]
             [reagent.impl.util :as util]
+            [reagent.impl.batching :as batch]
             [reagent.ratom :as ratom]))
 
-(def React tmpl/React)
+(def React util/React)
 
-(def is-client tmpl/isClient)
+(def is-client util/is-client)
+
+(defn as-component
+  "Turns a vector of Hiccup syntax into a React component. Returns form unchanged if it is not a vector."
+  [form]
+  (tmpl/as-component form))
 
 (defn render-component
   "Render a Reagent component into the DOM. The first argument may be either a
@@ -21,7 +27,7 @@ Returns the mounted component instance."
   ([comp container]
      (render-component comp container nil))
   ([comp container callback]
-     (.renderComponent React (tmpl/as-component comp) container callback)))
+     (.renderComponent React (as-component comp) container callback)))
 
 (defn unmount-component-at-node
   "Remove a component from the given DOM node."
@@ -31,74 +37,77 @@ Returns the mounted component instance."
 (defn render-component-to-string
   "Turns a component into an HTML string."
   ([component]
-     (let [res (clojure.core/atom nil)]
-       (render-component-to-string component #(reset! res %))
-       @res))
-  ([component callback]
-     (.renderComponentToString React (tmpl/as-component component) callback)))
+     (.renderComponentToString React (as-component component))))
 
 (defn create-class
   "Create a component, React style. Should be called with a map,
 looking like this:
 {:get-initial-state (fn [this])
-:component-will-receive-props (fn [this new-props])
-:should-component-update (fn [this old-props new-props old-children new-children])
+:component-will-receive-props (fn [this new-argv])
+:should-component-update (fn [this old-argv new-argv])
 :component-will-mount (fn [this])
 :component-did-mount (fn [this])
-:component-will-update (fn [this new-props new-children])
-:component-did-update (fn [this old-props old-children])
+:component-will-update (fn [this new-argv])
+:component-did-update (fn [this old-argv])
 :component-will-unmount (fn [this])
-:render (fn [props children this])}
+:render (fn [this])}
 
 Everything is optional, except :render.
 "
   [spec]
-  (comp/create-class spec))
+  (tmpl/create-class spec))
 
 
-
-(defn set-props
-  "Merge the props of a mounted, top-level component."
-  [comp props]
-  (comp/set-props comp props))
-
-(defn replace-props
-  "Set the props of a mounted, top-level component."
-  [comp props]
-  (comp/replace-props comp props))
+(defn current-component
+  "Returns the current React component (a.k.a this) in a component
+  function."
+  []
+  comp/*current-component*)
 
 
 (defn state
   "Returns the state of a component, as set with replace-state or set-state."
   [this]
+  (assert (util/reagent-component? this))
   (comp/state this))
 
 (defn replace-state
   "Set state of a component."
   [this new-state]
+  (assert (util/reagent-component? this))
+  (assert (or (nil? new-state) (map? new-state)))
   (comp/replace-state this new-state))
 
 (defn set-state
   "Merge component state with new-state."
   [this new-state]
+  (assert (util/reagent-component? this))
+  (assert (or (nil? new-state) (map? new-state)))
   (comp/set-state this new-state))
 
 
 (defn props
   "Returns the props passed to a component."
   [this]
-  (comp/get-props this))
+  (assert (util/reagent-component? this))
+  (util/get-props this))
 
 (defn children
   "Returns the children passed to a component."
   [this]
-  (comp/get-children this))
+  (assert (util/reagent-component? this))
+  (util/get-children this))
+
+(defn argv
+  "Returns the entire Hiccup form passed to the component."
+  [this]
+  (assert (util/reagent-component? this))
+  (util/get-argv this))
 
 (defn dom-node
   "Returns the root DOM node of a mounted component."
   [this]
   (.getDOMNode this))
-
 
 
 (defn merge-props
@@ -113,7 +122,7 @@ specially, like React's transferPropsTo."
 Note that this may not work in event handlers, since React.js does
 batching of updates there."
   []
-  (comp/flush))
+  (batch/flush))
 
 
 
@@ -132,18 +141,11 @@ re-rendered."
 (defn next-tick
   "Run f using requestAnimationFrame or equivalent."
   [f]
-  (comp/next-tick f))
+  (batch/next-tick f))
 
 (defn partial
   "Works just like clojure.core/partial, except that it is an IFn, and
 the result can be compared with ="
   [f & args]
   (util/partial-ifn. f args nil))
-
-(let [p1 (partial vector 1 2)]
-  (assert (= (p1 3) [1 2 3]))
-  (assert (= p1 (partial vector 1 2)))
-  (assert (ifn? p1))
-  (assert (= (partial vector 1 2) p1))
-  (assert (not= p1 (partial vector 1 3))))
 

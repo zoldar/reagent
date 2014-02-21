@@ -51,45 +51,43 @@
   (when isClient
     (let [ran (atom 0)
           comp (reagent/create-class
-                       {:component-did-mount #(swap! ran inc)
-                        :render (fn [props children this]
-                                  (assert (map? props))
-                                  (swap! ran inc)
-                                  [:div (str "hi " (:foo props) ".")])})]
-      (with-mounted-component (comp {:foo "you"})
+                {:component-did-mount #(swap! ran inc)
+                 :render
+                 (fn [this]
+                   (let [props (reagent/props this)]
+                     (is (map? props))
+                     (is (= props ((reagent/argv this) 1)))
+                     (is (= 1 (first (reagent/children this))))
+                     (is (= 1 (count (reagent/children this))))
+                     (swap! ran inc)
+                     [:div (str "hi " (:foo props) ".")]))})]
+      (with-mounted-component (comp {:foo "you"} 1)
         (fn [C div]
           (swap! ran inc)
-          (is (found-in #"hi you" div))
-          
-          (reagent/set-props C {:foo "there"})
-          (is (found-in #"hi there" div))
-
-          (let [runs @ran]
-            (reagent/set-props C {:foo "there"})
-            (is (found-in #"hi there" div))
-            (is (= runs @ran)))
-
-          (reagent/replace-props C {:foobar "not used"})
-          (is (found-in #"hi ." div))))
-      (is (= 5 @ran)))))
+          (is (found-in #"hi you" div))))
+      (is (= 3 @ran)))))
 
 (deftest test-state-change
   (when isClient
     (let [ran (atom 0)
           comp (reagent/create-class
-                       {:get-initial-state (fn [])
-                        :render (fn [props children this]
-                                  (swap! ran inc)
-                                  [:div (str "hi " (:foo (reagent/state this)))])})]
+                {:get-initial-state (fn [] {:foo "initial"})
+                 :render
+                 (fn []
+                   (let [this (reagent/current-component)]
+                     (swap! ran inc)
+                     [:div (str "hi " (:foo (reagent/state this)))]))})]
       (with-mounted-component (comp)
         (fn [C div]
           (swap! ran inc)
-          (is (found-in #"hi " div))
+          (is (found-in #"hi initial" div))
 
-          (reagent/set-state C {:foo "there"})
+          (reagent/replace-state C {:foo "there"})
+          (rflush)
           (is (found-in #"hi there" div))
 
           (reagent/set-state C {:foo "you"})
+          (rflush)
           (is (found-in #"hi you" div))))
       (is (= 4 @ran)))))
 
@@ -134,7 +132,7 @@
           v2 (atom 0)
           c2 (fn [{val :val}]
                (swap! ran inc)
-               (assert (= @v1 val))
+               (is (= @v1 val))
                [:div @v2])
           c1 (fn []
                (swap! ran inc)
@@ -164,12 +162,13 @@
 (deftest init-state-test
   (when isClient
     (let [ran (atom 0)
-          really-simple (fn [props children this]
-                          (swap! ran inc)
-                          (reagent/set-state this {:foo "foobar"})
-                          (fn []
-                            [:div (str "this is "
-                                       (:foo (reagent/state this)))]))]
+          really-simple (fn []
+                          (let [this (reagent/current-component)]
+                            (swap! ran inc)
+                            (reagent/set-state this {:foo "foobar"})
+                            (fn []
+                              [:div (str "this is "
+                                         (:foo (reagent/state this)))])))]
       (with-mounted-component [really-simple nil nil]
         (fn [c div]
           (swap! ran inc)
@@ -224,7 +223,7 @@
   (when isClient
     (let [ran (atom 0)
           state (atom 0)
-          really-simple (fn [props children this]
+          really-simple (fn []
                           (swap! ran inc)
                           (if (= @state 1)
                             (reset! state 3))
@@ -281,3 +280,35 @@
   (is (re-find #"id=.foo"
                (as-string [:div#bar {:id "foo"}]))
       "Dynamic id overwrites static"))
+
+(deftest ifn-component []
+  (let [comp {:foo [:div "foodiv"]
+              :bar [:div "bardiv"]}]
+    (is (re-find #"foodiv"
+                 (as-string [:div [comp :foo]])))
+    (is (re-find #"bardiv"
+                 (as-string [:div [comp :bar]])))))
+
+(deftest symbol-string-tag []
+  (is (re-find #"foobar"
+               (as-string ['div "foobar"])))
+  (is (re-find #"foobar"
+               (as-string ["div" "foobar"])))
+  (is (re-find #"id=.foo"
+               (as-string ['div#foo "x"])))
+  (is (re-find #"id=.foo"
+               (as-string ["div#foo" "x"])))
+  (is (re-find #"class=.foo bar"
+               (as-string ['div.foo {:class "bar"}])))
+  (is (re-find #"class=.foo bar"
+               (as-string ["div.foo.bar"])))
+  (is (re-find #"id=.foo"
+               (as-string ['div#foo.foo.bar]))))
+
+(deftest partial-test []
+  (let [p1 (reagent/partial vector 1 2)]
+    (is (= (p1 3) [1 2 3]))
+    (is (= p1 (reagent/partial vector 1 2)))
+    (is (ifn? p1))
+    (is (= (reagent/partial vector 1 2) p1))
+    (is (not= p1 (reagent/partial vector 1 3)))))
