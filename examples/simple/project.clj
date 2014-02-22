@@ -1,10 +1,10 @@
 
 
-(defproject simple-reagent "0.4.0"
+(defproject simple-reagent "0.4.1"
   :dependencies [[org.clojure/clojure "1.5.1"]
-                 [org.clojure/clojurescript "0.0-2138"]
-                 [reagent "0.4.0"]]
-  :plugins [[lein-cljsbuild "1.0.1"]]
+                 [org.clojure/clojurescript "0.0-2173"]
+                 [reagent "0.4.1"]]
+  :plugins [[lein-cljsbuild "1.0.2"]]
   :hooks [leiningen.cljsbuild]
   :profiles {:prod {:cljsbuild
                     {:builds
