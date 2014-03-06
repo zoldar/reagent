@@ -4,6 +4,7 @@
             [reagent.impl.util :as util
              :refer [cljs-level cljs-argv is-client React]]
             [reagent.impl.component :as comp]
+            [reagent.impl.batching :as batch]
             [reagent.ratom :as ratom]
             [reagent.debug :refer-macros [dbg prn println log dev?]]))
 
@@ -28,13 +29,7 @@
 
 (defn valid-tag? [x]
   (or (hiccup-tag? x)
-      (ifn? x)))
-
-(defn map-into-array [f arg coll]
-  (let [a (into-array coll)]
-    (dotimes [i (alength a)]
-      (aset a i (f (aget a i) arg)))
-    a))
+      (util/clj-ifn? x)))
 
 (defn to-js-val [v]
   (if-not (ifn? v)
@@ -51,8 +46,8 @@
 
 ;;; Props conversion
 
-(def cached-prop-name (memoize undash-prop-name))
-(def cached-style-name (memoize util/dash-to-camel))
+(def cached-prop-name (util/memoize-1 undash-prop-name))
+(def cached-style-name (util/memoize-1 util/dash-to-camel))
 
 (defn convert-prop-value [val]
   (if (map? val)
@@ -60,15 +55,17 @@
                  (doto res
                    (aset (cached-prop-name k)
                          (to-js-val v))))
-               (js-obj) val)
+               #js {} val)
     (to-js-val val)))
 
 (defn set-id-class [props [id class]]
-  (aset props "id" (or (aget props "id") id))
-  (when class
-    (aset props "className" (if-let [old (aget props "className")]
-                              (str class " " old)
-                              class))))
+  (let [pid (aget props "id")]
+    (aset props "id" (if-not (nil? pid) pid id))
+    (when-not (nil? class)
+      (aset props "className" (let [old (aget props "className")]
+                                (if-not (nil? old)
+                                  (str class " " old)
+                                  class))))))
 
 (defn convert-props [props id-class]
   (cond
@@ -89,31 +86,33 @@
 
 ;;; Specialization for input components
 
-(defn input-initial-state [this]
-  (let [props (util/get-props this)]
-    #js {:value (:value props)
-         :checked (:checked props)}))
+(defn input-handle-change [this on-change e]
+  (let [res (on-change e)]
+    ;; Make sure the input is re-rendered, in case on-change
+    ;; wants to keep the value unchanged
+    (batch/queue-render this)
+    res))
 
-(defn input-handle-change [this e]
-  (let [props (util/get-props this)
-        on-change (or (props :on-change) (props "onChange"))]
-    (when-not (nil? on-change)
-      (let [target (.-target e)]
-        (.setState this #js {:value (.-value target)
-                             :checked (.-checked target)}))
-      (on-change e))))
-
-(defn input-will-receive-props [this new-props]
-  (let [props (-> new-props (aget cljs-argv) util/extract-props)]
-    (.setState this #js {:value (:value props)
-                         :checked (:checked props)})))
+(defn input-did-update [this]
+  (let [value (.-cljsInputValue this)]
+    (when-not (nil? value)
+      (let [node (.getDOMNode this)]
+        (when (not= value (.-value node))
+          (set! (.-value node) value))))))
 
 (defn input-render-setup [this jsprops]
-  (let [state (aget this "state")]
-    (doto jsprops
-      (aset "value" (.-value state))
-      (aset "checked" (.-checked state))
-      (aset "onChange" (aget this "handleChange")))))
+  ;; Don't rely on React for updating "controlled inputs", since it
+  ;; doesn't play well with async rendering (misses keystrokes).
+  (let [on-change (aget jsprops "onChange")
+        value (when-not (nil? on-change)
+                (aget jsprops "value"))]
+    (set! (.-cljsInputValue this) value)
+    (when-not (nil? value)
+      (batch/mark-rendered this)
+      (doto jsprops
+        (aset "defaultValue" value)
+        (aset "value" nil)
+        (aset "onChange" #(input-handle-change this on-change %))))))
 
 (def input-components #{(aget DOM "input")
                         (aget DOM "textarea")})
@@ -121,23 +120,20 @@
 
 ;;; Wrapping of native components
 
-(declare as-component)
+(declare convert-args)
 
 (defn wrapped-render [this comp id-class input-setup]
   (let [inprops (util/js-props this)
         argv (aget inprops cljs-argv)
-        props (get argv 1)
+        props (nth argv 1 nil)
         hasprops (or (nil? props) (map? props))
-        first-child (if hasprops 2 1)
-        children (if (> (count argv) first-child)
-                   (subvec argv first-child))
-        jsargs (map-into-array as-component
-                               (inc (aget inprops cljs-level))
-                               children)
+        jsargs (convert-args argv
+                             (if hasprops 2 1)
+                             (inc (aget inprops cljs-level)))
         jsprops (convert-props (if hasprops props) id-class)]
     (when-not (nil? input-setup)
       (input-setup this jsprops))
-    (.unshift jsargs jsprops)
+    (aset jsargs 0 jsprops)
     (.apply comp nil jsargs)))
 
 (defn wrapped-should-update [C nextprops nextstate]
@@ -148,11 +144,8 @@
 
 (defn add-input-methods [spec]
   (doto spec
-    (aset "shouldComponentUpdate" nil)
-    (aset "getInitialState" #(this-as C (input-initial-state C)))
-    (aset "handleChange" #(this-as C (input-handle-change C %)))
-    (aset "componentWillReceiveProps"
-          #(this-as C (input-will-receive-props C %)))))
+    (aset "componentDidUpdate" #(this-as C (input-did-update C)))
+    (aset "componentWillUnmount" #(this-as C (batch/dispose C)))))
 
 (defn wrap-component [comp extras name]
   (let [input? (input-components comp)
@@ -165,9 +158,6 @@
     (when input?
       (add-input-methods spec))
     (.createClass React spec)))
-
-(defn create-class [spec]
-  (comp/create-class spec as-component))
 
 
 ;;; Conversion from Hiccup forms
@@ -185,7 +175,9 @@
   (let [[comp id-class] (parse-tag tag)]
     (wrap-component comp id-class (str tag))))
 
-(def cached-wrapper (memoize get-wrapper))
+(def cached-wrapper (util/memoize-1 get-wrapper))
+
+(declare create-class)
 
 (defn fn-to-class [f]
   (let [spec (meta f)
@@ -211,14 +203,14 @@
 
 (defn vec-to-comp [v level]
   (assert (pos? (count v)) "Hiccup form should not be empty")
-  (assert (valid-tag? (v 0))
+  (assert (valid-tag? (nth v 0))
           (str "Invalid Hiccup form: " (pr-str v)))
-  (let [c (as-class (v 0))
+  (let [c (as-class (nth v 0))
         jsprops (js-obj cljs-argv v
                         cljs-level level)]
     (let [k (-> v meta get-key)
           k' (if (nil? k)
-               (-> v (get 1) get-key)
+               (-> v (nth 1 nil) get-key)
                k)]
       (when-not (nil? k')
         (aset jsprops "key" k')))
@@ -232,8 +224,7 @@
          (pr-str x))
     (set! (.-warned tmp) true)))
 
-(defn expand-seq [x level]
-  (map-into-array as-component (inc level) x))
+(declare expand-seq)
 
 (defn as-component
   ([x] (as-component x 0))
@@ -248,3 +239,22 @@
                           (warn-on-deref x))
                         s))
            true x)))
+
+(defn create-class [spec]
+  (comp/create-class spec as-component))
+
+(defn expand-seq [s level]
+  (let [a (into-array s)
+        level' (inc level)]
+    (dotimes [i (alength a)]
+      (aset a i (as-component (aget a i) level')))
+    a))
+
+(defn convert-args [argv first-child level]
+  (let [a (into-array argv)]
+    (dotimes [i (alength a)]
+      (when (>= i first-child)
+        (aset a i (as-component (aget a i) level))))
+    (when (== first-child 2)
+      (.shift a))
+    a))

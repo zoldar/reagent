@@ -35,7 +35,7 @@
 (defn do-render [C]
   (binding [*current-component* C]
     (let [f (aget C cljs-render)
-          _ (assert (ifn? f))
+          _ (assert (util/clj-ifn? f))
           p (util/js-props C)
           res (if (nil? (aget C "componentFunction"))
                 (f C)
@@ -43,10 +43,10 @@
                       n (count argv)]
                   (case n
                     1 (f)
-                    2 (f (argv 1))
-                    3 (f (argv 1) (argv 2))
-                    4 (f (argv 1) (argv 2) (argv 3))
-                    5 (f (argv 1) (argv 2) (argv 3) (argv 4))
+                    2 (f (nth argv 1))
+                    3 (f (nth argv 1) (nth argv 2))
+                    4 (f (nth argv 1) (nth argv 2) (nth argv 3))
+                    5 (f (nth argv 1) (nth argv 2) (nth argv 3) (nth argv 4))
                     (apply f (subvec argv 1)))))]
       (if (vector? res)
         (.asComponent C res (aget p cljs-level))
@@ -133,7 +133,7 @@
 (def obligatory {:shouldComponentUpdate nil
                  :componentWillUnmount nil})
 
-(def dash-to-camel (memoize util/dash-to-camel))
+(def dash-to-camel (util/memoize-1 util/dash-to-camel))
 
 (defn camelify-map-keys [fun-map]
   (reduce-kv (fn [m k v]
@@ -155,7 +155,7 @@
 (defn wrap-funs [fun-map]
   (let [render-fun (or (:componentFunction fun-map)
                        (:render fun-map))
-        _ (assert (ifn? render-fun)
+        _ (assert (util/clj-ifn? render-fun)
                   (str "Render must be a function, not "
                        (pr-str render-fun)))
         name (or (:displayName fun-map)

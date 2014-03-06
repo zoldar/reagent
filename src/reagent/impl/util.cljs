@@ -18,11 +18,11 @@
   (aget C props))
 
 (defn extract-props [v]
-  (let [p (get v 1)]
+  (let [p (nth v 1 nil)]
     (if (map? p) p)))
 
 (defn extract-children [v]
-  (let [p (get v 1)
+  (let [p (nth v 1 nil)
         first-child (if (or (nil? p) (map? p)) 2 1)]
     (if (> (count v) first-child)
       (subvec v first-child))))
@@ -41,6 +41,16 @@
 
 
 ;; Misc utilities
+
+(defn memoize-1 [f]
+  (let [mem (atom {})]
+    (fn [arg]
+      (let [v (get @mem arg)]
+        (if-not (nil? v)
+          v
+          (let [ret (f arg)]
+            (swap! mem assoc arg ret)
+            ret))))))
 
 (def dont-camel-case #{"aria" "data"})
 
@@ -69,6 +79,13 @@
     (and (= f (.-f other)) (= args (.-args other))))
   IHash
   (-hash [_] (hash [f args])))
+
+; patch for CLJS-777; Can be replaced with clojure.core/ifn? after updating
+; ClojureScript to a version that includes the fix:
+; https://github.com/clojure/clojurescript/commit/525154f2a4874cf3b88ac3d5755794de425a94cb
+(defn clj-ifn? [x]
+  (or (ifn? x)
+      (satisfies? IMultiFn x)))
 
 (defn- merge-class [p1 p2]
   (let [class (when-let [c1 (:class p1)]
@@ -128,7 +145,7 @@
   (or (identical? v1 v2)
       (and (== (count v1) (count v2))
            (reduce-kv (fn [res k v]
-                        (let [v' (v2 k)]
+                        (let [v' (nth v2 k)]
                           (if (or (identical? v v')
                                   (identical-ish? v v')
                                   (and (map? v)
