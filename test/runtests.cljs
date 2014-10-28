@@ -1,6 +1,7 @@
 
 (ns runtests
   (:require [reagent.core :as reagent :refer [atom]]
+            [reagent.interop :refer-macros [.' .! fvar]]
             [reagent.debug :refer-macros [dbg println]]
             [demo :as demo]
             [cemerick.cljs.test :as t]))
@@ -18,7 +19,7 @@
         [:p (str "Ran " (:test res) " tests containing "
                  (+ (:pass res) (:fail res) (:error res))
                  " assertions.")]
-        [:p (:fail res) " failues, " (:error res) " errors."]])]))
+        [:p (:fail res) " failures, " (:error res) " errors."]])]))
 
 (defn test-output-mini []
   (let [res @test-results]
@@ -34,7 +35,8 @@
    [demo/demo]])
 
 (defn ^:export mounttests []
-  (reagent/render-component [test-demo] (.-body js/document)))
+  (reagent/render-component (fn [] [test-demo])
+                            (.-body js/document)))
 
 (defn ^:export run-all-tests []
   (println "-----------------------------------------")
@@ -47,5 +49,7 @@
   (println "-----------------------------------------"))
 
 (if reagent/is-client
-  (js/setTimeout run-all-tests 1000)
+  (do
+    (reset! test-results nil)
+    (js/setTimeout run-all-tests 1000))
   (run-all-tests))

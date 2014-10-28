@@ -7,7 +7,7 @@ PROF = dev
 CLJSBUILD = client
 CLJSDIRS = src test
 
-VERSION = 0.4.2
+VERSION = 0.4.3
 
 all: buildrun
 
@@ -52,7 +52,7 @@ veryclean: clean
 	rm -rf bower_components
 
 bower_components:
-	bower install react#v0.9.0
+	bower install react#v0.11.2
 
 vendor/reagent/react.min.js: bower_components/react/react.min.js Makefile
 	cp $< $@

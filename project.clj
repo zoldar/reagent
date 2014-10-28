@@ -1,18 +1,18 @@
 
-(defproject reagent "0.4.2"
+(defproject reagent "0.4.3"
   :url "http://github.com/holmsand/reagent"
   :license {:name "MIT"}
   :description "A simple ClojureScript interface to React"
-  :dependencies [[org.clojure/clojure "1.5.1"]
-                 [org.clojure/clojurescript "0.0-2173"]]
-  :plugins [[lein-cljsbuild "1.0.2"]
-            [com.cemerick/clojurescript.test "0.2.2"]]
-  :profiles {:prod {:cljsbuild
+  :dependencies [[org.clojure/clojure "1.6.0"]
+                 [org.clojure/clojurescript "0.0-2356"]]
+  :plugins [[lein-cljsbuild "1.0.3"]
+            [com.cemerick/clojurescript.test "0.3.1"]]
+  :profiles {:dev {:source-paths ["src" "demo"]}
+             :prod {:cljsbuild
                     {:builds
                      {:client {:compiler
                                {:optimizations :advanced
                                 :elide-asserts true
-                                :preamble ^:replace ["reagent/react.min.js"]
                                 :pretty-print false}}}}}
              :test {:cljsbuild
                     {:builds
@@ -36,7 +36,6 @@
                             "examples/geometry/src"]
              :notify-command ["node" "./bin/gen-site.js"]
              :compiler
-             {:preamble ["reagent/react.js"]
-              :output-dir "target/client"
+             {:output-dir "target/client"
               :output-to "target/cljs-client.js"
               :pretty-print true}}}})
