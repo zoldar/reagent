@@ -73,13 +73,20 @@
                            class))))
     p))
 
+(defn stringify-class [{:keys [class] :as props}]
+  (if (coll? class)
+    (assoc props :class (apply str (interpose " " class)))
+    props))
+
 (defn convert-props [props id-class]
   (let [id (.' id-class :id)
         class (.' id-class :className)
         no-id-class (and (nil? id) (nil? class))]
     (if (and no-id-class (empty? props))
       nil
-      (let [objprops (convert-prop-value props)]
+      (let [objprops (-> props
+                         stringify-class
+                         convert-prop-value)]
         (if no-id-class
           objprops
           (set-id-class objprops id class))))))
