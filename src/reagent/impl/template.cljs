@@ -75,11 +75,7 @@
 
 (defn stringify-class [{:keys [class] :as props}]
   (if (coll? class)
-    (->> class
-         (filter identity)
-         (interpose " ")
-         (apply str)
-         (assoc props :class))
+    (assoc props :class (string/join " " class))
     props))
 
 (defn convert-props [props id-class]
