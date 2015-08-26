@@ -1,8 +1,8 @@
 (ns reagent.ratom
   (:refer-clojure :exclude [atom])
-  (:require-macros [reagent.debug :refer (dbg log warn dev?)]
-                   reagent.ratom)
-  (:require [reagent.impl.util :as util]))
+  (:require-macros [reagent.ratom])
+  (:require [reagent.impl.util :as util]
+            [reagent.debug :refer-macros [dbg log warn dev?]]))
 
 (declare ^:dynamic *ratom-context*)
 
@@ -64,7 +64,7 @@
     (-reset! a (f state x)))
   (-swap! [a f x y]
     (-reset! a (f state x y)))
-  (-swap! [a f x y & more]
+  (-swap! [a f x y more]
     (-reset! a (apply f state x y more)))
 
   IMeta
@@ -143,7 +143,7 @@
     (-swap! (._reaction a) f x))
   (-swap! [a f x y]
     (-swap! (._reaction a) f x y))
-  (-swap! [a f x y & more]
+  (-swap! [a f x y more]
     (-swap! (._reaction a) f x y more))
 
   IPrintWithWriter
@@ -236,12 +236,12 @@
     (-reset! a (f (-peek-at a) x)))
   (-swap! [a f x y]
     (-reset! a (f (-peek-at a) x y)))
-  (-swap! [a f x y & more]
+  (-swap! [a f x y more]
     (-reset! a (apply f (-peek-at a) x y more)))
 
   IComputedImpl
   (-handle-change [this sender oldval newval]
-    (when (and active? (not dirty?) (not (identical? oldval newval)))
+    (when (and active? (not (identical? oldval newval)))
       (set! dirty? true)
       ((or auto-run run) this)))
 
@@ -362,7 +362,7 @@
     (-reset! a (f state x)))
   (-swap! [a f x y]
     (-reset! a (f state x y)))
-  (-swap! [a f x y & more]
+  (-swap! [a f x y more]
     (-reset! a (apply f state x y more)))
 
   IEquiv
